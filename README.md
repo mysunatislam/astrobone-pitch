@@ -9,7 +9,7 @@ The page plays like a 3:56 video with the live AstroBone app inside it: on-devic
 ## Recording the Video
 
 1. Open the link in Chrome on a laptop or desktop, ideally a 1920×1080 screen. Keep **only one** presentation tab open; each tab loads its own pose model and 3D models.
-2. Wait about 10 seconds on the start screen while it loads.
+2. **Play it through once before recording.** The first visit downloads about 85 MB (videos, 3D models, the pose model) and some parts can arrive late. After that first run everything is stored on the computer, so reload the page and record the second run.
 3. Press **N** to open the teleprompter in a second window (move it to another screen). Press **F** for fullscreen, **H** to hide the controls, then **Space** to start.
 4. Other keys: **← / →** jump 5 s, **1–4** jump to WHO / WHY / WHAT / HOW, **Space** pauses.
 5. It runs 3:56. Cut the start screen so the uploaded video stays **under 4:00**; the guide cuts longer videos off.
