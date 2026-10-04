@@ -1,0 +1,263 @@
+1
+00:00:00,200 --> 00:00:03,902
+Day one hundred forty-seven of a Mars transit.
+
+2
+00:00:03,902 --> 00:00:08,650
+A message to Earth takes up to twenty-two minutes, one way.
+
+3
+00:00:08,650 --> 00:00:13,800
+So when an astronaut's body starts to change, who notices first?
+
+4
+00:00:14,200 --> 00:00:17,500
+Our challenge: health monitoring software for astronauts on space missions.
+
+5
+00:00:17,900 --> 00:00:20,921
+We are Team AstroBone from Bangladesh.
+
+6
+00:00:20,921 --> 00:00:25,134
+I'm Mysunat Islam, biomedical engineer and team lead.
+
+7
+00:00:25,134 --> 00:00:28,712
+Redwan Ahamed Tamim is our lead data analyst,
+
+8
+00:00:28,712 --> 00:00:33,800
+and Mashyiat Islam Borno designs everything you're about to see.
+
+9
+00:00:34,200 --> 00:00:37,612
+We've written about twenty-nine thousand lines of code,
+
+10
+00:00:37,612 --> 00:00:40,961
+two hundred fifty-seven tests and forty-one documents,
+
+11
+00:00:40,961 --> 00:00:45,800
+and turned fourteen hundred NASA life-science records into one working system.
+
+12
+00:00:46,200 --> 00:00:50,079
+NASA names five hazards of spaceflight: radiation, isolation, distance,
+
+13
+00:00:50,079 --> 00:00:52,757
+altered gravity and a hostile closed environment.
+
+14
+00:00:52,757 --> 00:00:56,800
+They hit four systems: immune, bone, cardiovascular and behavioral health.
+
+15
+00:00:57,200 --> 00:01:02,560
+Meet Commander Elena Torres, a fictional astronaut on day one forty-seven,
+
+16
+00:01:02,560 --> 00:01:04,877
+with no flight surgeon on board.
+
+17
+00:01:04,877 --> 00:01:09,730
+This is her digital twin: her skeleton changing across the mission,
+
+18
+00:01:09,730 --> 00:01:14,800
+the muscles that protect it, and a heart beating at her recorded rate.
+
+19
+00:01:15,200 --> 00:01:19,448
+And the twin's main characters are NASA's own life-science data,
+
+20
+00:01:19,448 --> 00:01:22,169
+from the Ames Life Sciences Data Archive.
+
+21
+00:01:22,169 --> 00:01:25,421
+Study 804: after just thirty-seven days in space,
+
+22
+00:01:25,421 --> 00:01:29,934
+mice lost fifty-five percent of trabecular bone volume in the femur.
+
+23
+00:01:29,934 --> 00:01:34,911
+Inspiration4 crew data show immune and blood markers shifting after flight.
+
+24
+00:01:34,911 --> 00:01:38,030
+Two more studies cover the heart and radiation.
+
+25
+00:01:38,030 --> 00:01:42,079
+AstroBone carries fourteen hundred of these records on board,
+
+26
+00:01:42,079 --> 00:01:44,800
+each verified by its SHA-256 fingerprint.
+
+27
+00:01:45,200 --> 00:01:47,267
+Here's how the data protects her.
+
+28
+00:01:47,267 --> 00:01:49,334
+Every day, four kinds of signals.
+
+29
+00:01:49,334 --> 00:01:52,465
+AstroBone compares each one with her own baseline,
+
+30
+00:01:52,465 --> 00:01:55,973
+and NASA's life-science data tells it what to watch for.
+
+31
+00:01:55,973 --> 00:01:59,042
+When something drifts, she gets a safe next step,
+
+32
+00:01:59,042 --> 00:02:02,800
+and her medical and exercise team sees exactly what changed.
+
+33
+00:02:03,200 --> 00:02:05,336
+Here's the engine, in slow motion.
+
+34
+00:02:05,336 --> 00:02:07,912
+MediaPipe tracks the body on this device,
+
+35
+00:02:07,912 --> 00:02:12,183
+and the musculoskeletal twin copies the squat with its feet planted.
+
+36
+00:02:12,183 --> 00:02:15,638
+From one squat AstroBone measures knee range of motion,
+
+37
+00:02:15,638 --> 00:02:18,026
+the left-right gap and full extension:
+
+38
+00:02:18,026 --> 00:02:22,800
+the same signals the daily check compares with the astronaut's own baseline.
+
+39
+00:02:23,200 --> 00:02:26,996
+Now Elena's daily self-check in her digital twin.
+
+40
+00:02:26,996 --> 00:02:32,419
+Her first capture is badly framed, so AstroBone refuses to compare it.
+
+41
+00:02:32,419 --> 00:02:33,581
+She repeats it.
+
+42
+00:02:33,581 --> 00:02:36,602
+With her reaction test, sleep and mood,
+
+43
+00:02:36,602 --> 00:02:42,800
+three domains move outside her personal range, and the twin shows exactly where.
+
+44
+00:02:43,200 --> 00:02:48,680
+If something unexpected happens, like a loose tool striking her shin,
+
+45
+00:02:48,680 --> 00:02:52,413
+AstroBone reconstructs the impact with physics,
+
+46
+00:02:52,413 --> 00:02:55,273
+maps bending stress along the tibia,
+
+47
+00:02:55,273 --> 00:02:59,800
+and runs ten thousand Monte Carlo simulations in seconds.
+
+48
+00:03:00,200 --> 00:03:03,548
+And it all works with no connection.
+
+49
+00:03:03,548 --> 00:03:10,987
+The pose AI, the NASA life-science evidence pack and the 3D models are cached on
+
+50
+00:03:10,987 --> 00:03:12,010
+the device.
+
+51
+00:03:12,010 --> 00:03:14,800
+No health data ever leaves it.
+
+52
+00:03:15,200 --> 00:03:17,184
+That changes who notices first.
+
+53
+00:03:17,184 --> 00:03:21,728
+She sees a change at the next daily check, not the next ground contact.
+
+54
+00:03:21,728 --> 00:03:26,528
+Her medical and exercise team sees whether her countermeasures are working.
+
+55
+00:03:26,528 --> 00:03:31,648
+And on Earth, the same tool can serve rural clinics in Bangladesh and anyone far
+
+56
+00:03:31,648 --> 00:03:32,800
+from a specialist.
+
+57
+00:03:33,200 --> 00:03:37,425
+What we need next: a validation study against a clinical goniometer,
+
+58
+00:03:37,425 --> 00:03:42,395
+a pilot in an analog mission, access to restricted long-duration crew records in
+
+59
+00:03:42,395 --> 00:03:46,495
+NASA's Life Sciences Data Archive to calibrate personal baselines,
+
+60
+00:03:46,495 --> 00:03:47,800
+and wearable sensors.
+
+61
+00:03:48,200 --> 00:03:48,917
+AstroBone.
+
+62
+00:03:48,917 --> 00:03:49,491
+Predict.
+
+63
+00:03:49,491 --> 00:03:50,064
+Observe.
+
+64
+00:03:50,064 --> 00:03:50,566
+Update.
+
+65
+00:03:50,566 --> 00:03:51,140
+Protect.
+
+66
+00:03:51,140 --> 00:03:55,800
+Because on the way to Mars, the first responder is the astronaut.
