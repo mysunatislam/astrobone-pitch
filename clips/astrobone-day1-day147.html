@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AstroBone · Day 1 to Day 147</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
+  #stage { position: fixed; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: center; }
+  canvas { width: 1920px; height: 1080px; display: block; }
+  #hint { position: fixed; left: 16px; bottom: 12px; font: 600 13px Consolas, monospace; color: rgba(200, 220, 255, .55); letter-spacing: .08em; transition: opacity .6s; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c" width="1920" height="1080"></canvas></div>
+<div id="hint">SPACE play / pause · R restart · F fullscreen</div>
+<script>
+// AstroBone explainer: one crew member's squat on Day 1 and Day 147, and what each model does.
+// Ten seconds, drawn frame by frame from the time t, so it can be paused, restarted or recorded.
+// Model names shown on screen; edit here to match the models used.
+const MODELS = { detector: "YOLO", pose: "MediaPipe Pose", rig: "Instant MHR" };
+const DAY1_DEEPEST = 72, DAY147_DEEPEST = 105, TOTAL = 10;
+
+const canvas = document.getElementById("c"), main = canvas.getContext("2d");
+let g = main;
+const ghostLayer = Object.assign(document.createElement("canvas"), { width: 1920, height: 1080 }), ghostCtx = ghostLayer.getContext("2d");
+const stage = document.getElementById("stage"), hint = document.getElementById("hint");
+const fit = () => { const s = Math.min(innerWidth / 1920, innerHeight / 1080); stage.style.transform = `translate(-50%, -50%) scale(${s})`; };
+fit(); addEventListener("resize", fit);
+
+const C = { ink: "#e8f1ff", dim: "#8fa4c0", cyan: "#6fe3ff", green: "#6dffb0", violet: "#c3b2ff", amber: "#ffb347", gold: "#ffd27a", red: "#ff6a5c",
+  display: '"Bahnschrift", "DIN Alternate", "Arial Narrow", "Segoe UI", sans-serif', mono: '"Cascadia Mono", Consolas, monospace', body: '"Segoe UI", system-ui, sans-serif' };
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const ease = x => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2; };
+const ramp = (t, a, b) => ease((t - a) / (b - a));
+const rad = d => d * Math.PI / 180, deg = r => r * 180 / Math.PI;
+const add = (p, q, k = 1) => ({ x: p.x + q.x * k, y: p.y + q.y * k });
+const len = v => Math.hypot(v.x, v.y), norm = v => { const l = len(v) || 1; return { x: v.x / l, y: v.y / l }; };
+const rot = (v, a) => ({ x: v.x * Math.cos(a) - v.y * Math.sin(a), y: v.x * Math.sin(a) + v.y * Math.cos(a) });
+
+// ---------- timeline ----------
+const DAY1 = { t0: .6, t1: 4.3, deepest: DAY1_DEEPEST }, DAY147 = { t0: 5.7, t1: 8.9, deepest: DAY147_DEEPEST };
+function kneeAt(rep, t) {
+  const u = clamp((t - rep.t0) / (rep.t1 - rep.t0)), depth = (1 - Math.cos(2 * Math.PI * u)) / 2;
+  return 174 - (174 - rep.deepest) * depth;
+}
+
+// ---------- skeleton (side view, facing right) ----------
+// Arm lengths are shortened: in side view the arms reach out to the bar, toward the camera.
+const L = { shin: 228, thigh: 236, torso: 250, upper: 92, fore: 84 };
+function pose(knee, shift = { x: 0, y: 0 }) {
+  const flex = 180 - knee, A = { x: 840 + shift.x, y: 884 + shift.y };
+  const alpha = rad(flex * .42), K = add(A, { x: Math.sin(alpha), y: -Math.cos(alpha) }, L.shin);
+  const d1 = norm({ x: A.x - K.x, y: A.y - K.y });
+  const r1 = rot(d1, rad(knee)), r2 = rot(d1, -rad(knee)), d2 = r1.x < r2.x ? r1 : r2; // the thigh goes back
+  const H = add(K, d2, L.thigh);
+  // Balance: the trunk leans just enough to keep the bar over the middle of the foot.
+  const beta = Math.asin(clamp((A.x + 34 - H.x) / L.torso, 0, .8)), up = { x: Math.sin(beta), y: -Math.cos(beta) }, back = { x: -Math.cos(beta), y: -Math.sin(beta) };
+  const S = add(H, up, L.torso);
+  const headUp = { x: Math.sin(beta * .55), y: -Math.cos(beta * .55) };
+  const head = add(add(S, headUp, 78), { x: 14, y: 0 });
+  const bar = add(add(S, back, 36), up, 12);
+  const hand = add(bar, { x: 10, y: 6 });
+  // Elbow: two-bone IK from shoulder to hand, bending down and back.
+  const toHand = { x: hand.x - S.x, y: hand.y - S.y }, span = clamp(len(toHand), Math.abs(L.upper - L.fore) + 1, L.upper + L.fore - 1), axis = norm(toHand);
+  const along = (L.upper ** 2 - L.fore ** 2 + span ** 2) / (2 * span), out = Math.sqrt(Math.max(0, L.upper ** 2 - along ** 2));
+  let pole = { x: -up.x + back.x * .35, y: -up.y + back.y * .35 }; const pd = pole.x * axis.x + pole.y * axis.y; pole = norm({ x: pole.x - axis.x * pd, y: pole.y - axis.y * pd });
+  const E = add(add(S, axis, along), pole, out);
+  const heel = add(A, { x: -30, y: 22 }), toe = add(A, { x: 78, y: 24 });
+  return { A, K, H, S, E, W: hand, head, bar, heel, toe, up, back, knee };
+}
+
+// The figure and its overlays are drawn at 86 % scale about the platform, so she fits the frame standing.
+const FIG = { s: .86, ox: 840, oy: 905 };
+const figTransform = ctx => ctx.setTransform(FIG.s, 0, 0, FIG.s, FIG.ox * (1 - FIG.s), FIG.oy * (1 - FIG.s));
+
+// ---------- drawing helpers ----------
+function capsule(p, q, w1, w2, fill) {
+  const d = norm({ x: q.x - p.x, y: q.y - p.y }), n = { x: -d.y, y: d.x };
+  g.fillStyle = fill; g.beginPath();
+  g.moveTo(p.x + n.x * w1 / 2, p.y + n.y * w1 / 2); g.lineTo(q.x + n.x * w2 / 2, q.y + n.y * w2 / 2);
+  g.lineTo(q.x - n.x * w2 / 2, q.y - n.y * w2 / 2); g.lineTo(p.x - n.x * w1 / 2, p.y - n.y * w1 / 2); g.closePath(); g.fill();
+  g.beginPath(); g.arc(p.x, p.y, w1 / 2, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.arc(q.x, q.y, w2 / 2, 0, Math.PI * 2); g.fill();
+}
+const lerpP = (p, q, k) => ({ x: p.x + (q.x - p.x) * k, y: p.y + (q.y - p.y) * k });
+function text(s, x, y, { font = `600 20px ${C.body}`, color = C.ink, align = "left", alpha = 1, spacing = 0 } = {}) {
+  g.save(); g.globalAlpha *= alpha; g.font = font; g.fillStyle = color; g.textAlign = align; g.textBaseline = "alphabetic";
+  if (spacing) g.letterSpacing = `${spacing}px`; g.fillText(s, x, y); g.restore();
+}
+function roundRect(x, y, w, h, r, fill, stroke) { g.beginPath(); g.roundRect(x, y, w, h, r); if (fill) { g.fillStyle = fill; g.fill(); } if (stroke) { g.strokeStyle = stroke; g.lineWidth = 1.5; g.stroke(); } }
+
+// ---------- scene ----------
+const stars = Array.from({ length: 160 }, (_, i) => ({ x: (i * 397) % 1920, y: (i * 233) % 1080, r: ((i * 13) % 10) / 10 + .3 }));
+function background(t, day147) {
+  const grd = g.createLinearGradient(0, 0, 0, 1080); grd.addColorStop(0, "#0b1626"); grd.addColorStop(1, "#04080f");
+  g.fillStyle = grd; g.fillRect(0, 0, 1920, 1080);
+  // Module wall panels and handrails
+  g.strokeStyle = "rgba(140, 180, 230, .08)"; g.lineWidth = 2;
+  for (let x = 120; x < 1300; x += 190) { g.strokeRect(x, 150, 170, 560); }
+  g.strokeStyle = "rgba(120, 170, 255, .22)"; g.lineWidth = 8; g.lineCap = "round";
+  g.beginPath(); g.moveTo(140, 300); g.lineTo(1240, 300); g.stroke();
+  // Window with Earth (Day 1) or deep space (Day 147)
+  const wx = 330, wy = 420, wr = 120;
+  g.save(); g.beginPath(); g.arc(wx, wy, wr, 0, Math.PI * 2); g.clip();
+  g.fillStyle = "#01030a"; g.fillRect(wx - wr, wy - wr, wr * 2, wr * 2);
+  for (const s of stars) { g.fillStyle = `rgba(220,235,255,${.4 + .5 * ((s.x + s.y) % 7) / 7})`; g.fillRect(wx - wr + (s.x % (wr * 2)), wy - wr + (s.y % (wr * 2)), s.r, s.r); }
+  if (!day147) { const e = g.createRadialGradient(wx + 40, wy + 260, 150, wx + 40, wy + 260, 300); e.addColorStop(0, "#2a6fd6"); e.addColorStop(.75, "#1b4fa0"); e.addColorStop(.86, "rgba(120,190,255,.7)"); e.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = e; g.fillRect(wx - wr, wy - wr, wr * 2, wr * 2); }
+  else { g.fillStyle = "#c1673f"; g.beginPath(); g.arc(wx + 52, wy - 40, 9, 0, Math.PI * 2); g.fill(); }
+  g.restore();
+  g.strokeStyle = "rgba(170, 200, 240, .35)"; g.lineWidth = 10; g.beginPath(); g.arc(wx, wy, wr + 4, 0, Math.PI * 2); g.stroke();
+  // Exercise platform
+  g.fillStyle = "#18222f"; g.fillRect(560, 906, 640, 26); g.fillStyle = "#223246"; g.fillRect(560, 906, 640, 6);
+  g.fillStyle = "rgba(0,0,0,.35)"; g.beginPath(); g.ellipse(860, 912, 190, 14, 0, 0, Math.PI * 2); g.fill();
+}
+
+const SKIN = "#c98d68", SKIN_FAR = "#a8714f", SHIRT = "#1f3a6b", SHIRT_FAR = "#172c52", SHORTS = "#5b6474", SHORTS_FAR = "#474f5d", HAIR = "#2a1a14", SHOE = "#e9eef5";
+function figure(P, far) {
+  const k = far ? 1 : 0, skin = far ? SKIN_FAR : SKIN, shorts = far ? SHORTS_FAR : SHORTS;
+  const o = far ? { x: -16, y: -6 } : { x: 0, y: 0 }, f = p => add(p, o);
+  // leg
+  capsule(f(P.K), f(P.A), 50, 38, skin);
+  capsule(f(P.H), f(P.K), 70, 54, skin);
+  capsule(f(P.H), f(lerpP(P.H, P.K, .5)), 74, 62, shorts);
+  g.fillStyle = far ? "#c9d1dc" : SHOE; g.beginPath(); const a = f(P.A), heel = f(P.heel), toe = f(P.toe);
+  g.moveTo(heel.x, heel.y - 26); g.quadraticCurveTo(a.x + 20, a.y - 30, toe.x, toe.y - 10); g.lineTo(toe.x + 4, toe.y + 4); g.lineTo(heel.x - 4, heel.y + 4); g.closePath(); g.fill();
+  // arm
+  capsule(f(P.S), f(P.E), 34, 28, far ? SHIRT_FAR : SHIRT);
+  capsule(f(lerpP(P.S, P.E, .5)), f(P.E), 28, 26, skin);
+  capsule(f(P.E), f(P.W), 26, 22, skin);
+  g.fillStyle = skin; g.beginPath(); const w = f(P.W); g.arc(w.x, w.y, 15, 0, Math.PI * 2); g.fill();
+  void k;
+}
+function torso(P) {
+  // shorts at the hips, shirt over the trunk with a mission patch
+  capsule(P.H, lerpP(P.H, P.S, .22), 92, 90, SHORTS);
+  capsule(lerpP(P.H, P.S, .16), P.S, 96, 86, SHIRT);
+  const patch = add(lerpP(P.H, P.S, .72), { x: P.up.y * -18, y: P.up.x * 18 });
+  g.fillStyle = "#e9eef5"; g.beginPath(); g.arc(patch.x + 8, patch.y, 11, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#c0392b"; g.beginPath(); g.arc(patch.x + 8, patch.y, 5, 0, Math.PI * 2); g.fill();
+  // neck and head
+  capsule(P.S, lerpP(P.S, P.head, .6), 34, 32, SKIN);
+  g.fillStyle = SKIN; g.beginPath(); g.arc(P.head.x, P.head.y, 44, 0, Math.PI * 2); g.fill();
+  // hair: cap, bun and ponytail at the back
+  g.fillStyle = HAIR; g.beginPath(); g.arc(P.head.x - 4, P.head.y - 6, 46, Math.PI * .92, Math.PI * 2.05); g.closePath(); g.fill();
+  g.beginPath(); g.ellipse(P.head.x - 46, P.head.y - 8, 20, 22, 0, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.moveTo(P.head.x - 52, P.head.y + 4); g.quadraticCurveTo(P.head.x - 90, P.head.y + 40, P.head.x - 66, P.head.y + 84); g.lineTo(P.head.x - 52, P.head.y + 70); g.quadraticCurveTo(P.head.x - 70, P.head.y + 36, P.head.x - 40, P.head.y + 10); g.fill();
+  g.fillStyle = "#3a2318"; g.beginPath(); g.arc(P.head.x + 26, P.head.y - 4, 4, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#b67a58"; g.beginPath(); g.ellipse(P.head.x - 6, P.head.y + 6, 7, 11, 0, 0, Math.PI * 2); g.fill();
+}
+// Her Day 1 squat at the same moment, as a faint silhouette behind her.
+function ghostBody(P, show) {
+  if (show <= 0) return;
+  // Drawn solid on its own layer, then laid down once at low opacity, so overlaps do not darken.
+  g = ghostCtx; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, 1920, 1080); figTransform(g); const c = "#6fe3ff";
+  capsule(P.K, P.A, 50, 38, c); capsule(P.H, P.K, 70, 54, c); capsule(P.H, P.S, 96, 86, c); capsule(P.S, P.E, 32, 26, c); capsule(P.E, P.W, 26, 22, c);
+  capsule(P.S, lerpP(P.S, P.head, .6), 34, 32, c); g.fillStyle = c; g.beginPath(); g.arc(P.head.x, P.head.y, 44, 0, Math.PI * 2); g.fill();
+  g = main; g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha *= show * .28; g.drawImage(ghostLayer, 0, 0); g.restore();
+  text("DAY 1 DEPTH", P.K.x + 40, P.K.y + 70, { font: `700 18px ${C.mono}`, color: C.cyan, spacing: 2, alpha: show });
+}
+function barbell(P) {
+  g.fillStyle = "#1c232e"; g.beginPath(); g.arc(P.bar.x, P.bar.y, 72, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = "#3b4757"; g.lineWidth = 5; g.beginPath(); g.arc(P.bar.x, P.bar.y, 66, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = "#aab4c2"; g.beginPath(); g.arc(P.bar.x, P.bar.y, 13, 0, Math.PI * 2); g.fill();
+}
+
+// ---------- model overlays ----------
+function landmarks(P) {
+  const far = p => add(p, { x: -16, y: -6 });
+  return {
+    nose: add(P.head, { x: 44, y: 8 }), eye: add(P.head, { x: 28, y: -6 }), ear: add(P.head, { x: -6, y: 4 }), mouth: add(P.head, { x: 36, y: 24 }),
+    shoulder: P.S, elbow: P.E, wrist: P.W, hip: P.H, knee: P.K, ankle: P.A, heel: P.heel, toe: P.toe,
+    shoulderF: far(P.S), elbowF: far(P.E), wristF: far(P.W), hipF: far(P.H), kneeF: far(P.K), ankleF: far(P.A), heelF: far(P.heel), toeF: far(P.toe),
+  };
+}
+const BONES = [["shoulder", "elbow"], ["elbow", "wrist"], ["shoulder", "hip"], ["hip", "knee"], ["knee", "ankle"], ["ankle", "heel"], ["heel", "toe"], ["ankle", "toe"],
+  ["shoulderF", "elbowF"], ["elbowF", "wristF"], ["hipF", "kneeF"], ["kneeF", "ankleF"], ["ankleF", "heelF"], ["heelF", "toeF"], ["shoulder", "shoulderF"], ["hip", "hipF"], ["ear", "shoulder"], ["eye", "nose"], ["nose", "mouth"]];
+
+function yoloBox(P, show, labelShow) {
+  if (show <= 0) return;
+  const pts = Object.values(landmarks(P)); let x0 = Math.min(...pts.map(p => p.x)) - 70, x1 = Math.max(...pts.map(p => p.x)) + 50, y0 = P.head.y - 70, y1 = Math.max(P.heel.y, P.toe.y) + 24;
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, k = .65 + .35 * show; x0 = cx + (x0 - cx) * k; x1 = cx + (x1 - cx) * k; y0 = cy + (y0 - cy) * k; y1 = cy + (y1 - cy) * k;
+  g.save(); g.globalAlpha = show; g.strokeStyle = C.green; g.lineWidth = 3;
+  g.setLineDash([10, 8]); g.strokeRect(x0, y0, x1 - x0, y1 - y0); g.setLineDash([]); g.lineWidth = 6;
+  const c = 30; for (const [x, y, sx, sy] of [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]]) { g.beginPath(); g.moveTo(x + sx * c, y); g.lineTo(x, y); g.lineTo(x, y + sy * c); g.stroke(); }
+  if (labelShow > 0) { g.globalAlpha = show * labelShow; roundRect(x0, y0 - 40, 214, 34, 6, C.green); text(`person  0.97`, x0 + 14, y0 - 15, { font: `700 20px ${C.mono}`, color: "#04120a" }); }
+  g.restore();
+}
+function skeleton(P, show, { color = C.cyan, dash = null, dots = true } = {}) {
+  if (show <= 0) return;
+  const M = landmarks(P), keys = Object.keys(M);
+  g.save(); g.globalAlpha = show; g.lineCap = "round"; g.strokeStyle = color; g.lineWidth = 5; if (dash) g.setLineDash(dash);
+  for (const [a, b] of BONES) { const isFar = a.endsWith("F") && b.endsWith("F"); g.globalAlpha = show * (isFar ? .55 : 1); g.beginPath(); g.moveTo(M[a].x, M[a].y); g.lineTo(M[b].x, M[b].y); g.stroke(); }
+  if (dots) keys.forEach((key, i) => { const p = M[key], appear = clamp(show * keys.length - i); if (appear <= 0) return; g.globalAlpha = appear * (key.endsWith("F") ? .6 : 1); g.fillStyle = "#fff"; g.beginPath(); g.arc(p.x, p.y, 7, 0, Math.PI * 2); g.fill(); g.strokeStyle = color; g.lineWidth = 2.5; g.stroke(); });
+  g.restore();
+}
+function rigMesh(P, show) {
+  if (show <= 0) return;
+  g.save(); g.globalAlpha = show * .8; g.strokeStyle = C.violet; g.lineWidth = 1.4;
+  const segs = [[P.H, P.K, 72, 54], [P.K, P.A, 52, 38], [P.H, P.S, 96, 86], [P.S, P.E, 36, 28], [P.E, P.W, 28, 22]];
+  for (const [p, q, w1, w2] of segs) {
+    const d = norm({ x: q.x - p.x, y: q.y - p.y }), n = { x: -d.y, y: d.x }, l = len({ x: q.x - p.x, y: q.y - p.y }), rings = Math.max(3, Math.round(l / 26));
+    for (let i = 0; i <= rings; i++) {
+      const k = i / rings; if (k > show * 1.2) break;
+      const c = lerpP(p, q, k), w = w1 + (w2 - w1) * k;
+      g.beginPath(); g.ellipse(c.x, c.y, w / 2, w * .16, Math.atan2(n.y, n.x), 0, Math.PI * 2); g.stroke();
+    }
+    for (const s of [-.5, -.18, .18, .5]) { g.beginPath(); g.moveTo(p.x + n.x * w1 * s, p.y + n.y * w1 * s); g.lineTo(q.x + n.x * w2 * s, q.y + n.y * w2 * s); g.stroke(); }
+  }
+  for (let i = 1; i <= 4; i++) { g.beginPath(); g.ellipse(P.head.x, P.head.y, 46 * i / 4, 46, 0, 0, Math.PI * 2); g.stroke(); g.beginPath(); g.ellipse(P.head.x, P.head.y, 46, 46 * i / 4, 0, 0, Math.PI * 2); g.stroke(); }
+  g.restore();
+}
+function kneeArc(P, show, color = C.gold) {
+  if (show <= 0) return;
+  const a1 = Math.atan2(P.H.y - P.K.y, P.H.x - P.K.x), a2 = Math.atan2(P.A.y - P.K.y, P.A.x - P.K.x);
+  let s = a2, e = a1; if (((e - s) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) > Math.PI) [s, e] = [e, s];
+  g.save(); g.globalAlpha = show; g.strokeStyle = color; g.lineWidth = 4; g.beginPath(); g.arc(P.K.x, P.K.y, 58, s, e); g.stroke();
+  const label = `${Math.round(P.knee)}°`; g.font = `700 34px ${C.mono}`; const w = g.measureText(label).width;
+  roundRect(P.K.x + 64, P.K.y - 28, w + 24, 46, 8, "rgba(2,8,18,.82)"); text(label, P.K.x + 76, P.K.y + 6, { font: `700 34px ${C.mono}`, color });
+  g.restore();
+}
+
+// ---------- panels ----------
+const STEPS = [
+  [MODELS.detector, "Finds her in the camera frame"],
+  [MODELS.pose, "33 body landmarks, every frame, on the device"],
+  [MODELS.rig, "Fits a body rig to the landmarks → joint angles"],
+  ["AstroBone", "Compares with HER Day 1, not a population → flags the change"],
+];
+function rail(t) {
+  const active = t < .5 ? -1 : t < 1.0 ? 0 : t < 1.8 ? 1 : t < 6.6 ? 2 : 3;
+  const x = 1380, w = 470; let y = 170;
+  text("WHAT THE AI DOES", x, y - 24, { font: `700 18px ${C.mono}`, color: C.cyan, spacing: 4 });
+  STEPS.forEach(([title, desc], i) => {
+    const on = i === active, done = i < active, colors = [C.green, C.cyan, C.violet, C.amber];
+    g.save(); g.globalAlpha = on ? 1 : done ? .62 : .3;
+    roundRect(x, y, w, 104, 14, on ? "rgba(255,255,255,.07)" : "rgba(14,30,54,.55)", on ? colors[i] : "rgba(120,190,255,.18)");
+    g.fillStyle = colors[i]; g.beginPath(); g.arc(x + 32, y + 36, 12, 0, Math.PI * 2); g.fill();
+    text(String(i + 1), x + 32, y + 42, { font: `800 16px ${C.mono}`, color: "#04080f", align: "center" });
+    text(title.toUpperCase(), x + 58, y + 43, { font: `700 22px ${C.mono}`, color: colors[i], spacing: 2 });
+    wrapText(desc, x + 58, y + 74, w - 80, `500 19px ${C.body}`, C.ink);
+    g.restore(); y += 118;
+  });
+}
+function wrapText(s, x, y, w, font, color) {
+  g.font = font; const words = s.split(" "); let line = "", yy = y;
+  for (const word of words) { const test = line ? `${line} ${word}` : word; if (g.measureText(test).width > w && line) { text(line, x, yy, { font, color }); line = word; yy += 24; } else line = test; }
+  if (line) text(line, x, yy, { font, color });
+}
+function chart(t, day147) {
+  const x = 1380, y = 680, w = 470, h = 230;
+  roundRect(x, y, w, h, 14, "rgba(6,14,28,.82)", "rgba(120,190,255,.18)");
+  text("KNEE ANGLE · ONE SQUAT", x + 20, y + 32, { font: `700 16px ${C.mono}`, color: C.dim, spacing: 3 });
+  const px = u => x + 50 + u * (w - 70), py = v => y + 56 + (180 - v) / 120 * (h - 80);
+  g.strokeStyle = "rgba(120,190,255,.12)"; g.lineWidth = 1;
+  for (const v of [60, 90, 120, 150, 180]) { g.beginPath(); g.moveTo(px(0), py(v)); g.lineTo(px(1), py(v)); g.stroke(); text(`${v}°`, x + 12, py(v) + 5, { font: `500 13px ${C.mono}`, color: C.dim }); }
+  const trace = (rep, upto, color, dash) => {
+    g.save(); g.strokeStyle = color; g.lineWidth = 4; g.lineJoin = "round"; if (dash) g.setLineDash(dash); g.beginPath();
+    const n = 80; for (let i = 0; i <= n * upto; i++) { const u = i / n, v = kneeAt(rep, rep.t0 + u * (rep.t1 - rep.t0)); i ? g.lineTo(px(u), py(v)) : g.moveTo(px(u), py(v)); } g.stroke(); g.restore();
+  };
+  if (!day147) trace(DAY1, clamp((t - DAY1.t0) / (DAY1.t1 - DAY1.t0)), C.cyan);
+  else {
+    trace(DAY1, 1, "rgba(111,227,255,.45)", [8, 8]);
+    trace(DAY147, clamp((t - DAY147.t0) / (DAY147.t1 - DAY147.t0)), C.amber);
+    text("Day 1", px(.5) - 30, py(DAY1_DEEPEST) + 26, { font: `600 14px ${C.mono}`, color: C.cyan });
+    text("Day 147", px(.5) + 18, py(DAY147_DEEPEST) - 10, { font: `600 14px ${C.mono}`, color: C.amber });
+  }
+}
+function header(t, day147) {
+  const label = day147 ? "DAY 147" : "DAY 1", sub = day147 ? "MARS TRANSIT · SAME 3-MIN SQUAT CHECK" : "BASELINE · ISS EXERCISE SESSION";
+  text(label, 90, 140, { font: `800 92px ${C.display}`, color: C.ink });
+  text(sub, 92, 182, { font: `700 20px ${C.mono}`, color: day147 ? C.amber : C.cyan, spacing: 4 });
+  text("Crew member · synthetic demo", 92, 214, { font: `500 18px ${C.body}`, color: C.dim });
+}
+
+// ---------- frame ----------
+function frame(t) {
+  const day147 = t >= 5.15, rep = day147 ? DAY147 : DAY1, knee = kneeAt(rep, t), P = pose(knee);
+  background(t, day147);
+  g.save(); g.globalAlpha = clamp(day147 ? (t - 5.15) / .45 : 1 - (t - 4.55) / .4) || 0; if (t < .25) g.globalAlpha = t / .25;
+  // Day 147: her Day 1 pose at the same moment of the squat, as a ghost
+  g.save(); figTransform(g);
+  if (day147) ghostBody(pose(kneeAt(DAY1, DAY1.t0 + (t - DAY147.t0) / (DAY147.t1 - DAY147.t0) * (DAY1.t1 - DAY1.t0))), ramp(t, 6.2, 6.7) * (1 - ramp(t, 8.3, 8.8)));
+  figure(P, true); barbell(P); torso(P); figure(P, false);
+  const on = day147 ? 1 : 0;
+  rigMesh(P, Math.max(on, ramp(t, 1.8, 2.5)) * (day147 ? ramp(t, 5.4, 5.9) : 1));
+  skeleton(P, Math.max(on * ramp(t, 5.3, 5.7), ramp(t, 1.0, 1.6)));
+  yoloBox(P, Math.max(on * ramp(t, 5.3, 5.6), ramp(t, .45, .85)), Math.max(on, ramp(t, .75, .95)));
+  kneeArc(P, Math.max(on * ramp(t, 5.4, 5.8), ramp(t, 1.5, 1.9)), day147 ? C.amber : C.gold);
+  g.restore();
+  header(t, day147); rail(t); chart(t, day147);
+  // Day 147 finding
+  const f = ramp(t, 7.0, 7.45);
+  if (day147 && f > 0) {
+    g.save(); g.globalAlpha = f; const x = 90, y = 560;
+    roundRect(x, y, 470, 200, 16, "rgba(40,22,4,.86)", C.amber);
+    text("CHANGE FROM HER OWN BASELINE", x + 24, y + 40, { font: `700 17px ${C.mono}`, color: C.amber, spacing: 2 });
+    text(`Deepest knee bend ${DAY147_DEEPEST}°`, x + 24, y + 84, { font: `700 34px ${C.display}`, color: C.ink });
+    text(`Day 1: ${DAY1_DEEPEST}°  ·  ${DAY147_DEEPEST - DAY1_DEEPEST}° less bend`, x + 24, y + 122, { font: `600 22px ${C.body}`, color: C.gold });
+    text("→ Re-check in 24 h · log for medical review", x + 24, y + 166, { font: `600 20px ${C.body}`, color: C.green });
+    g.restore();
+  }
+  g.restore();
+  // Day 1 → Day 147 time-lapse
+  const tl = clamp((t - 4.45) / .3) * (1 - clamp((t - 5.45) / .3));
+  if (tl > 0) {
+    g.save(); g.globalAlpha = tl; g.fillStyle = "rgba(1,3,8,.94)"; g.fillRect(0, 0, 1920, 1080);
+    const day = Math.round(1 + 146 * ease((t - 4.55) / .85));
+    text("DAY", 960, 430, { font: `700 34px ${C.mono}`, color: C.cyan, align: "center", spacing: 10 });
+    text(String(clamp(day, 1, 147)), 960, 610, { font: `800 200px ${C.display}`, color: C.ink, align: "center" });
+    text("147 days in microgravity · bone and muscle unloading", 960, 680, { font: `500 28px ${C.body}`, color: C.dim, align: "center" });
+    g.restore();
+  }
+  // End card
+  const end = ramp(t, 8.95, 9.35);
+  if (end > 0) {
+    g.save(); g.globalAlpha = end; const grd = g.createLinearGradient(0, 600, 0, 1080); grd.addColorStop(0, "rgba(1,3,8,0)"); grd.addColorStop(.35, "rgba(1,3,8,.92)"); grd.addColorStop(1, "rgba(1,3,8,.98)");
+    g.fillStyle = grd; g.fillRect(0, 600, 1920, 480);
+    text("ASTROBONE", 960, 900, { font: `800 96px ${C.display}`, color: C.ink, align: "center", spacing: 6 });
+    text("The same AI every day, compared with her own Day 1, not a population average.", 960, 958, { font: `500 30px ${C.body}`, color: C.dim, align: "center" });
+    text("She notices the change first, on the device, with no connection needed.", 960, 1004, { font: `600 26px ${C.body}`, color: C.cyan, align: "center" });
+    g.restore();
+  }
+}
+
+// ---------- player ----------
+let t = 0, playing = true, last = performance.now();
+const params = new URLSearchParams(location.search);
+if (params.has("t")) { t = Number(params.get("t")) || 0; playing = false; }
+function loop(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (playing) { t += dt; if (t >= TOTAL) { t = TOTAL; playing = false; } }
+  frame(t); requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+setTimeout(() => { hint.style.opacity = 0; }, 2500);
+addEventListener("keydown", e => {
+  if (e.code === "Space") { e.preventDefault(); if (t >= TOTAL) t = 0; playing = !playing; }
+  else if (e.key.toLowerCase() === "r") { t = 0; playing = true; }
+  else if (e.key.toLowerCase() === "f") (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.())?.catch?.(() => {});
+});
+window.__seek = s => { t = s; playing = false; frame(t); };
+</script>
+</body>
+</html>
